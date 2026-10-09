@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Earworm">
 <meta name="theme-color" content="#111114">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Earworm</title>
 <style>
 :root{
@@ -16,7 +19,11 @@
   --good:#3ecf6e; --warn:#e9b53b; --bad:#ec5a5f;
 }
 *{box-sizing:border-box}
-html{color-scheme:dark}
+html{color-scheme:dark;-webkit-text-size-adjust:100%}
+/* no double-tap zoom on phones (pinch-zoom still works), no grey tap flash */
+html,body,button,input,select,a,.sugg li{touch-action:manipulation}
+*{-webkit-tap-highlight-color:transparent}
+button{-webkit-user-select:none;user-select:none}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;justify-content:center}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -249,6 +256,30 @@ const GENRES = [
   [165,'R&B'],[85,'Alternative'],[106,'Electro'],[464,'Metal'],[169,'Soul & Funk'],
   [459,'German Music'],[197,'Latin Music'],[84,'Country'],[144,'Reggae']
 ];
+// Curated categories, each built from one or more Deezer editorial playlists (merged, duplicates removed)
+const MIXES = [
+  { group: 'Deutsch', items: [
+    ['de-charts',    'Deutsche Charts',               [1111143121]],
+    ['de-rap',       'Deutschrap – aktuell',          [146820791, 10578289242, 1257540851]],
+    ['de-rap-old',   'Deutschrap – Klassiker',        [13057242263, 5086582604]],
+    ['de-pop',       'Deutschpop',                    [11242422704, 8668716682, 1495051201]],
+    ['de-schlager',  'Schlager',                      [8699026122, 640754905, 1953777782, 12462638963]],
+    ['de-party',     'Party, Malle & Après-Ski',      [10328601542, 1917690502, 12244014291, 10679486102]],
+    ['de-rock',      'Deutschrock',                   [1956739222, 11909416601]],
+    ['de-80s',       'NDW & deutsche 80er',           [6758361584, 10457025082]],
+    ['de-90s',       'Deutsche 90er',                 [10453961322]],
+    ['de-00s10s',    'Deutsche 2000er & 2010er',      [10396822102, 10396828062]],
+    ['de-indie',     'Deutscher Indie',               [1322647575]],
+  ]},
+  { group: 'Jahrzehnte (international)', items: [
+    ['80s',          '80er Hits',                     [867825522, 7347403884]],
+    ['90s',          '90er Hits',                     [3829647662]],
+    ['00s',          '2000er Hits',                   [5015220864, 9337143362]],
+    ['10s',          '2010er Hits',                   [8490488142]],
+    ['rock-classics','Rock Klassiker',                [6046721604]],
+  ]},
+];
+const MIX_BY_ID = Object.fromEntries(MIXES.flatMap(g => g.items.map(([id, name, lists]) => [id, { name, lists }])));
 
 // ---------- helpers ----------
 const $ = id => document.getElementById(id);
@@ -389,7 +420,7 @@ class Player {
 }
 
 // ---------- state ----------
-let settings = Object.assign({ source: 'chart:0', mode: 'endless', volume: 0.8, randomStart: false }, LS.get('settings', {}));
+let settings = Object.assign({ source: 'mix:de-charts', mode: 'endless', volume: 0.8, randomStart: false }, LS.get('settings', {}));
 let playlists = LS.get('playlists', []);
 let stats = Object.assign({ played: 0, won: 0, streak: 0, best: 0, dist: [0,0,0,0,0,0], lost: 0 }, LS.get('stats', {}));
 const saveSettings = () => LS.set('settings', settings);
@@ -406,6 +437,12 @@ async function loadPool(key){
   if (kind === 'chart'){
     const d = await dz(`/chart/${id}/tracks`, { limit: 100 });
     raw = d.data || [];
+  } else if (kind === 'mix'){
+    const mix = MIX_BY_ID[id];
+    if (!mix) throw new Error('Unknown category');
+    const pages = await Promise.all(mix.lists.map(pl =>
+      dz(`/playlist/${pl}/tracks`, { limit: 400 }).then(d => d.data || []).catch(() => [])));
+    raw = pages.flat();
   } else {
     let url = `https://api.deezer.com/playlist/${id}/tracks?limit=400&index=0`;
     for (let p = 0; url && p < 10; p++){
@@ -427,6 +464,7 @@ async function loadPool(key){
 const sourceName = key => {
   const [kind, id] = key.split(':');
   if (kind === 'chart'){ const g = GENRES.find(x => String(x[0]) === id); return g ? g[1] : 'Charts'; }
+  if (kind === 'mix') return MIX_BY_ID[id] ? MIX_BY_ID[id].name : 'Category';
   const p = playlists.find(x => x.id === id); return p ? p.name : 'Playlist';
 };
 
@@ -714,7 +752,12 @@ $('q').addEventListener('blur', () => setTimeout(closeSugg, 120));
 // ---------- sources & settings ----------
 function buildSources(){
   const sel = $('source'); sel.innerHTML = '';
-  const g1 = document.createElement('optgroup'); g1.label = 'Deezer charts';
+  MIXES.forEach(g => {
+    const og = document.createElement('optgroup'); og.label = g.group;
+    g.items.forEach(([id, name]) => og.append(new Option(name, 'mix:' + id)));
+    sel.append(og);
+  });
+  const g1 = document.createElement('optgroup'); g1.label = 'Deezer Charts nach Genre';
   GENRES.forEach(([id, n]) => g1.append(new Option(n, 'chart:' + id)));
   sel.append(g1);
   if (playlists.length){
