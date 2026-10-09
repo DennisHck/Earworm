@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Earworm">
+<meta name="theme-color" content="#111114">
+<title>Earworm</title>
+<style>
+:root{
+  --bg:#111114; --panel:#1b1b20; --panel2:#24242b; --line:#2e2e37; --line2:#454552;
+  --text:#f3f3f5; --muted:#9b9ba8; --accent:#b07cff; --accent2:#8f55f5;
+  --good:#3ecf6e; --warn:#e9b53b; --bad:#ec5a5f;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;justify-content:center}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.45}
+.app{width:100%;max-width:560px;padding:calc(22px + env(safe-area-inset-top)) 16px calc(56px + env(safe-area-inset-bottom))}
+/* 16px+ stops iPhone Safari from zooming in when a field is focused */
+.search input,.plrow input,select{font-size:16px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+h1{font-size:30px;letter-spacing:-.03em;margin:0;font-weight:800}
+h1 span{color:var(--accent)}
+.hbtns{display:flex;gap:8px;align-items:center}
+.vol{display:flex;align-items:center;gap:4px;height:38px;padding:0 10px 0 4px;border:1px solid var(--line);border-radius:999px}
+.volbtn{background:none;border:0;color:var(--muted);width:30px;height:30px;display:grid;place-items:center;padding:0;border-radius:50%}
+.volbtn:hover{color:var(--text)}
+.volbtn svg{width:18px;height:18px}
+.vol input[type=range]{width:90px}
+@media (max-width:420px){ .vol input[type=range]{width:60px} h1{font-size:26px} }
+.icon{background:none;border:1px solid var(--line);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.icon:hover{color:var(--text);border-color:var(--line2)}
+.icon svg{width:18px;height:18px}
+
+.controls{display:flex;gap:8px;margin-bottom:18px}
+select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;flex-shrink:0}
+.seg button{background:none;border:0;color:var(--muted);padding:5px 12px;border-radius:7px}
+.seg button.on{background:var(--line2);color:var(--text)}
+
+.rows{display:grid;gap:6px;margin-bottom:24px}
+.row{height:42px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;gap:10px;padding:0 12px;color:var(--muted);font-size:14px;min-width:0}
+.row .txt{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.row .ic{width:18px;flex-shrink:0;text-align:center;font-weight:700}
+.row.cur{border-color:var(--line2);background:var(--panel)}
+.row.skip{color:var(--muted)}
+.row.wrong{border-color:rgba(236,90,95,.45);color:var(--text)} .row.wrong .ic{color:var(--bad)}
+.row.artist{border-color:rgba(233,181,59,.5);color:var(--text)} .row.artist .ic{color:var(--warn)}
+.row.correct{border-color:rgba(62,207,110,.55);color:var(--text);background:rgba(62,207,110,.08)} .row.correct .ic{color:var(--good)}
+
+.bar{position:relative;height:16px;background:var(--panel);border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+.unlocked{position:absolute;top:0;bottom:0;left:0;background:#4c4c5c;transition:width .35s ease}
+.progress{position:absolute;top:0;bottom:0;left:0;width:0;background:var(--accent)}
+.tick{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--bg)}
+.blabels{display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:var(--muted)}
+.blabels b{color:var(--text);font-weight:600}
+
+.playrow{display:flex;justify-content:center;margin:22px 0}
+.play{width:68px;height:68px;border-radius:50%;border:0;background:var(--accent);color:#16101f;display:grid;place-items:center;box-shadow:0 6px 24px rgba(176,124,255,.25);transition:transform .1s,background .15s}
+.play:hover:not(:disabled){background:#bf94ff}
+.play:active:not(:disabled){transform:scale(.95)}
+.play svg{width:28px;height:28px}
+
+.guess{display:flex;gap:8px}
+.search{position:relative;flex:1;min-width:0}
+.search input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px 11px 38px;outline:none}
+.search input:focus{border-color:var(--accent2)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+.sugg{position:absolute;left:0;right:0;bottom:calc(100% + 6px);margin:0;padding:4px;list-style:none;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;max-height:330px;overflow-y:auto;z-index:5;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.sugg:empty{display:none}
+.sugg li{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:7px;cursor:pointer;min-width:0}
+.sugg li.on,.sugg li:hover{background:var(--line2)}
+.sugg img{width:36px;height:36px;border-radius:4px;flex-shrink:0;background:var(--line)}
+.sugg .m{min-width:0}
+.sugg .t,.sugg .a{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sugg .a{font-size:13px;color:var(--muted)}
+.sugg .note{color:var(--muted);font-size:13px;padding:8px;cursor:default}
+.skipb{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:0 14px;white-space:nowrap;flex-shrink:0}
+.skipb:hover:not(:disabled){border-color:var(--line2)}
+
+.status{text-align:center;color:var(--muted);min-height:22px;margin:14px 0 0;font-size:14px}
+.status.err{color:var(--bad)}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line2);padding:8px 14px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.show{opacity:1}
+
+.result{margin-top:4px}
+.verdict{text-align:center;font-size:20px;font-weight:700;margin-bottom:14px}
+.verdict small{display:block;font-size:14px;font-weight:400;color:var(--muted);margin-top:2px}
+.card{display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.card img{width:84px;height:84px;border-radius:8px;flex-shrink:0;background:var(--line)}
+.card .meta{min-width:0}
+.card .t{font-size:18px;font-weight:700;line-height:1.25}
+.card .a{color:var(--text)}
+.card .al{color:var(--muted);font-size:13px}
+.rbar{height:4px;background:var(--line);border-radius:2px;margin:10px 2px 14px;overflow:hidden}
+.rbar div{height:100%;width:0;background:var(--accent)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;text-decoration:none;color:var(--text)}
+.btn:hover{border-color:var(--line2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#16101f;font-weight:700;grid-column:1/-1}
+.btn.primary:hover{background:#bf94ff}
+.hidden{display:none!important}
+footer{margin-top:34px;text-align:center;font-size:12px;color:#6d6d79}
+footer a{color:inherit}
+
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line2);border-radius:16px;padding:20px;width:min(440px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 14px;font-size:19px}
+.dhead{display:flex;justify-content:space-between;align-items:center}
+.dhead .icon{width:32px;height:32px;border:0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;margin-bottom:18px}
+.stats b{display:block;font-size:24px}
+.stats span{font-size:12px;color:var(--muted)}
+.dist{display:grid;gap:5px}
+.dist div{display:flex;align-items:center;gap:8px;font-size:13px}
+.dist label{width:34px;text-align:right;color:var(--muted)}
+.dist i{display:block;height:20px;min-width:22px;background:var(--line2);border-radius:4px;font-style:normal;font-size:12px;line-height:20px;text-align:right;padding-right:6px}
+.dist i.hl{background:var(--accent);color:#16101f}
+.field{margin-bottom:16px}
+.field>label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.check input{margin-top:3px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.plrow{display:flex;gap:8px}
+.plrow input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none}
+.plrow input:focus{border-color:var(--accent2)}
+.plmsg{font-size:13px;color:var(--muted);margin-top:6px;min-height:18px}
+.plmsg.err{color:var(--bad)}
+.pllist{list-style:none;margin:8px 0 0;padding:0}
+.pllist li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.pllist li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pllist button{background:none;border:0;color:var(--muted);font-size:13px}
+.pllist button:hover{color:var(--bad)}
+.small{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px}
+.small:hover{border-color:var(--line2)}
+.dangerrow{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Ear<span>worm</span></h1>
+    <div class="hbtns">
+      <div class="vol">
+        <button class="volbtn" id="muteBtn" title="Mute / unmute" aria-label="Mute"></button>
+        <input type="range" id="vol" min="0" max="1" step="0.01" aria-label="Volume">
+      </div>
+      <button class="icon" id="statsBtn" title="Stats" aria-label="Stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>
+      <button class="icon" id="settingsBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <select id="source" aria-label="Song source"></select>
+    <div class="seg" id="modeSeg">
+      <button data-mode="endless">Endless</button>
+      <button data-mode="daily">Daily</button>
+    </div>
+  </div>
+
+  <div class="rows" id="rows"></div>
+
+  <div class="bar" id="bar"><div class="unlocked" id="unlocked"></div><div class="progress" id="progress"></div></div>
+  <div class="blabels"><span id="stepLabel">&nbsp;</span><span>16s</span></div>
+
+  <div class="playrow">
+    <button class="play" id="playBtn" aria-label="Play snippet" disabled></button>
+  </div>
+
+  <div class="guess" id="guessArea">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" placeholder="Search for a song…" autocomplete="off" spellcheck="false" disabled>
+      <ul class="sugg" id="sugg"></ul>
+    </div>
+    <button class="skipb" id="skipBtn" disabled>Skip</button>
+  </div>
+
+  <div class="result hidden" id="result">
+    <div class="verdict" id="verdict"></div>
+    <div class="card">
+      <img id="cover" alt="">
+      <div class="meta">
+        <div class="t" id="rTitle"></div>
+        <div class="a" id="rArtist"></div>
+        <div class="al" id="rAlbum"></div>
+      </div>
+    </div>
+    <div class="rbar"><div id="rProg"></div></div>
+    <div class="actions">
+      <button class="btn" id="rPlay">Play preview</button>
+      <a class="btn" id="rLink" target="_blank" rel="noopener">Open in Deezer</a>
+      <button class="btn" id="shareBtn">Copy result</button>
+      <button class="btn" id="retryBtn">Same song again</button>
+      <button class="btn primary" id="nextBtn">Next song</button>
+    </div>
+  </div>
+
+  <p class="status" id="status"></p>
+  <footer>Song data and 30-second previews from <a href="https://www.deezer.com" target="_blank" rel="noopener">Deezer</a>. Space = play / stop.</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<dialog id="statsDlg">
+  <div class="dhead"><h2>Your stats</h2><button class="icon" data-close aria-label="Close">✕</button></div>
+  <div class="stats" id="statsTop"></div>
+  <div class="dist" id="dist"></div>
+</dialog>
+
+<dialog id="settingsDlg">
+  <div class="dhead"><h2>Settings</h2><button class="icon" data-close aria-label="Close">✕</button></div>
+  <div class="field">
+    <label class="check"><input type="checkbox" id="randStart"> <span>Random start point<br><small style="color:var(--muted)">Snippets start somewhere inside the 30-second preview instead of at its beginning. Harder.</small></span></label>
+  </div>
+  <div class="field">
+    <label for="plInput">Add a Deezer playlist</label>
+    <div class="plrow">
+      <input id="plInput" placeholder="https://www.deezer.com/…/playlist/123456">
+      <button class="small" id="plAdd">Add</button>
+    </div>
+    <div class="plmsg" id="plMsg">Paste a public playlist link or its number.</div>
+    <ul class="pllist" id="plList"></ul>
+  </div>
+  <div class="field">
+    <label>Reset</label>
+    <div class="dangerrow">
+      <button class="small" id="resetHist">Forget played songs (this source)</button>
+      <button class="small" id="resetStats">Reset stats</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- config ----------
+const STEPS = [0.5, 1, 2, 4, 8, 16];         // seconds unlocked per try
+const MAXT = STEPS[STEPS.length - 1];
+const GENRES = [
+  [0,'Top charts (all genres)'],[132,'Pop'],[116,'Rap / Hip Hop'],[152,'Rock'],[113,'Dance'],
+  [165,'R&B'],[85,'Alternative'],[106,'Electro'],[464,'Metal'],[169,'Soul & Funk'],
+  [459,'German Music'],[197,'Latin Music'],[84,'Country'],[144,'Reggae']
+];
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem('earworm:' + k); return v == null ? d : JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem('earworm:' + k, JSON.stringify(v)); }catch{} },
+  del(k){ try{ localStorage.removeItem('earworm:' + k); }catch{} }
+};
+const scale = t => Math.sqrt(Math.max(0, Math.min(t, MAXT)) / MAXT) * 100;   // sqrt so 0.1s is still visible
+const fmt = v => v < 1 ? v.toFixed(1) : String(v);
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+function hash(str){ let h = 2166136261; for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function norm(s){
+  return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/\(.*?\)|\[.*?\]/g, ' ')
+    .replace(/\s[-–]\s.*$/, ' ')
+    .replace(/\b(feat|ft|featuring)\b.*$/, ' ')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+let toastT;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
+function setStatus(msg, err){ const s = $('status'); s.textContent = msg || ''; s.classList.toggle('err', !!err); }
+
+// Deezer's API has no CORS headers, but supports JSONP — works even from a local file.
+let jsonpN = 0;
+function dz(path, params = {}){
+  return new Promise((resolve, reject) => {
+    const cb = '__dz' + (++jsonpN) + '_' + Date.now();
+    const url = new URL(path.startsWith('http') ? path : 'https://api.deezer.com' + path);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    url.searchParams.set('output', 'jsonp');
+    url.searchParams.set('callback', cb);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Deezer took too long to answer')); }, 15000);
+    function cleanup(){ clearTimeout(timer); try{ delete window[cb]; }catch{ window[cb] = undefined; } s.remove(); }
+    window[cb] = d => { cleanup(); if (d && d.error) reject(new Error(d.error.message || 'Deezer error')); else resolve(d); };
+    s.onerror = () => { cleanup(); reject(new Error('Could not reach Deezer — are you online?')); };
+    s.src = url.toString();
+    document.head.appendChild(s);
+  });
+}
+
+// ---------- audio ----------
+// Preferred: download the preview and play it through Web Audio (sample-accurate cut-offs).
+// Fallback: a plain <audio> element, stopped by a timer + animation-frame check.
+class Player {
+  constructor(vol){ this.ctx = null; this.master = null; this.buffer = null; this.el = null; this.mode = null; this.cur = null; this.raf = 0; this.volume = vol; this.duration = 30; }
+  ensureCtx(){
+    // iPhone: let Web Audio play even when the ring/silent switch is on silent (Safari 16.4+)
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    if (!this.ctx){
+      const C = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new C();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.volume;
+      this.master.connect(this.ctx.destination);
+    }
+    return this.ctx;
+  }
+  async load(url){
+    this.stop();
+    this.buffer = null; this.mode = null;
+    if (this.el){ this.el.pause(); this.el.removeAttribute('src'); this.el.load(); this.el = null; }
+    try {
+      const ctx = this.ensureCtx();
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const ab = await res.arrayBuffer();
+      this.buffer = await new Promise((ok, bad) => { const p = ctx.decodeAudioData(ab, ok, bad); if (p && p.then) p.then(ok, bad); });
+      this.mode = 'webaudio'; this.duration = this.buffer.duration;
+      return;
+    } catch (e) {
+      console.info('Web Audio path unavailable, using <audio> fallback:', e && e.message);
+    }
+    const el = new Audio();
+    el.preload = 'auto'; el.volume = this.volume; el.src = url;
+    await new Promise((ok, bad) => {
+      const to = setTimeout(ok, 10000);
+      el.addEventListener('canplaythrough', () => { clearTimeout(to); ok(); }, { once: true });
+      el.addEventListener('error', () => { clearTimeout(to); bad(new Error('The audio preview failed to load')); }, { once: true });
+      el.load();
+    });
+    this.el = el; this.mode = 'element'; this.duration = isFinite(el.duration) && el.duration > 0 ? el.duration : 30;
+  }
+  setVolume(v){ this.volume = v; if (this.master) this.master.gain.value = v; if (this.el) this.el.volume = v; }
+  get playing(){ return !!this.cur; }
+  async play(from, dur, onTick, onEnd){
+    this.stop();
+    from = Math.max(0, Math.min(from, this.duration - 0.05));
+    dur = Math.max(0.02, Math.min(dur, this.duration - from));
+    const tok = { onTick, onEnd, dur };
+    this.cur = tok;
+    if (this.mode === 'webaudio'){
+      const ctx = this.ctx;
+      if (ctx.state !== 'running') await ctx.resume();
+      if (this.cur !== tok) return;
+      const src = ctx.createBufferSource(); src.buffer = this.buffer;
+      const g = ctx.createGain(); src.connect(g); g.connect(this.master);
+      const t = ctx.currentTime + 0.015, f = Math.min(0.006, dur / 5);   // tiny fades = no clicks
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + f);
+      g.gain.setValueAtTime(1, t + dur - f); g.gain.linearRampToValueAtTime(0, t + dur);
+      src.start(t, from, dur);
+      tok.src = src;
+      tok.elapsed = () => Math.max(0, Math.min(dur, ctx.currentTime - t));
+      src.onended = () => { if (this.cur === tok) this.finish(); };
+    } else if (this.mode === 'element'){
+      const el = this.el;
+      el.currentTime = from;
+      try { await el.play(); } catch (e) { if (this.cur === tok) this.cur = null; throw e; }
+      if (this.cur !== tok){ el.pause(); return; }
+      const started = performance.now();
+      tok.elapsed = () => Math.max(0, Math.min(dur, el.currentTime - from));
+      tok.check = () => {
+        if (el.currentTime - from >= dur - 0.012 || el.ended || performance.now() - started > dur * 1000 + 120){ el.pause(); this.finish(); return true; }
+        return false;
+      };
+      tok.timer = setTimeout(() => { if (this.cur === tok){ el.pause(); this.finish(); } }, dur * 1000 + 150);
+    } else { this.cur = null; return; }
+    const loop = () => {
+      if (this.cur !== tok) return;
+      if (tok.check && tok.check()) return;
+      onTick && onTick(tok.elapsed());
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+  halt(){
+    const tok = this.cur; this.cur = null; cancelAnimationFrame(this.raf);
+    if (!tok) return null;
+    if (tok.timer) clearTimeout(tok.timer);
+    if (tok.src){ try { tok.src.onended = null; tok.src.stop(); } catch {} }
+    if (this.mode === 'element' && this.el) this.el.pause();
+    return tok;
+  }
+  finish(){ const tok = this.halt(); if (tok){ tok.onTick && tok.onTick(tok.dur); tok.onEnd && tok.onEnd(false); } }
+  stop(){ const tok = this.halt(); if (tok && tok.onEnd) tok.onEnd(true); }
+}
+
+// ---------- state ----------
+let settings = Object.assign({ source: 'chart:0', mode: 'endless', volume: 0.8, randomStart: false }, LS.get('settings', {}));
+let playlists = LS.get('playlists', []);
+let stats = Object.assign({ played: 0, won: 0, streak: 0, best: 0, dist: [0,0,0,0,0,0], lost: 0 }, LS.get('stats', {}));
+const saveSettings = () => LS.set('settings', settings);
+const player = new Player(settings.volume);
+const poolCache = {};
+let round = null, loadSeq = 0;
+
+// ---------- song pools ----------
+async function loadPool(key){
+  const c = poolCache[key];
+  if (c && Date.now() - c.t < 30 * 60e3) return c.tracks;
+  const [kind, id] = key.split(':');
+  let raw = [];
+  if (kind === 'chart'){
+    const d = await dz(`/chart/${id}/tracks`, { limit: 100 });
+    raw = d.data || [];
+  } else {
+    let url = `https://api.deezer.com/playlist/${id}/tracks?limit=400&index=0`;
+    for (let p = 0; url && p < 10; p++){
+      const d = await dz(url);
+      raw.push(...(d.data || []));
+      url = d.next || null;
+    }
+  }
+  const seen = new Set(), tracks = [];
+  for (const t of raw){
+    if (!t || !t.id || (t.type && t.type !== 'track') || t.readable === false || !t.preview) continue;
+    const k = norm(t.title_short || t.title) + '|' + norm(t.artist && t.artist.name);
+    if (seen.has(k)) continue;
+    seen.add(k); tracks.push({ id: t.id });
+  }
+  poolCache[key] = { t: Date.now(), tracks };
+  return tracks;
+}
+const sourceName = key => {
+  const [kind, id] = key.split(':');
+  if (kind === 'chart'){ const g = GENRES.find(x => String(x[0]) === id); return g ? g[1] : 'Charts'; }
+  const p = playlists.find(x => x.id === id); return p ? p.name : 'Playlist';
+};
+
+// ---------- rounds ----------
+const dailyKey = r => 'daily:' + r.date + ':' + r.key;
+function saveDaily(){
+  if (!round || round.mode !== 'daily') return;
+  LS.set(dailyKey(round), { trackId: round.track.id, guesses: round.guesses, done: round.done, won: round.won, offset: round.offset });
+}
+
+async function fetchPlayable(id){
+  const full = await dz('/track/' + id);           // fresh preview link (they expire after ~15 min)
+  return full && full.preview && full.readable !== false ? full : null;
+}
+
+async function startRound(replayTrack){
+  const seq = ++loadSeq;
+  player.stop();
+  round = null;
+  closeSugg(); $('q').value = '';
+  $('result').classList.add('hidden');
+  $('guessArea').classList.remove('hidden');
+  $('playBtn').closest('.playrow').classList.remove('hidden');
+  setBusy(true);
+  setStatus('Loading a song…');
+  renderRows(); renderBar();
+  try {
+    const key = settings.source, mode = settings.mode, date = today();
+    let full = null, saved = null;
+    if (replayTrack){
+      full = await fetchPlayable(replayTrack.id);
+    } else {
+      const pool = await loadPool(key);
+      if (seq !== loadSeq) return;
+      if (!pool.length) throw new Error('No playable songs in this source. Try another one.');
+      if (mode === 'daily'){
+        saved = LS.get('daily:' + date + ':' + key, null);
+        let idx = saved ? pool.findIndex(p => p.id === saved.trackId) : -1;
+        if (saved && idx < 0) full = await fetchPlayable(saved.trackId);
+        if (!full){
+          if (idx < 0) idx = hash(date + '|' + key) % pool.length;
+          for (let i = 0; i < 8 && !full; i++){
+            full = await fetchPlayable(pool[(idx + i) % pool.length].id);
+            if (seq !== loadSeq) return;
+          }
+          if (saved && full && full.id !== saved.trackId) saved = null;
+        }
+      } else {
+        let hist = LS.get('hist:' + key, []);
+        for (let i = 0; i < 8 && !full; i++){
+          let cand = pool.filter(p => !hist.includes(p.id));
+          if (!cand.length){ hist = []; cand = pool; toast('You’ve heard every song here — starting over'); }
+          const pick = cand[Math.floor(Math.random() * cand.length)];
+          hist.push(pick.id);
+          LS.set('hist:' + key, hist.slice(-3000));
+          full = await fetchPlayable(pick.id);
+          if (seq !== loadSeq) return;
+        }
+      }
+    }
+    if (!full) throw new Error('Couldn’t find a playable preview. Try another source.');
+    await player.load(full.preview);
+    if (seq !== loadSeq) return;
+    const range = Math.max(0, player.duration - MAXT - 0.5);
+    let offset = 0;
+    if (settings.randomStart) offset = mode === 'daily' && !replayTrack ? (hash(date + key + 'o') % 1000) / 1000 * range : Math.random() * range;
+    round = { track: full, guesses: [], done: false, won: false, offset, key, mode: replayTrack ? 'endless' : mode, date };
+    if (saved){ round.guesses = saved.guesses || []; round.done = !!saved.done; round.won = !!saved.won; round.offset = saved.offset || 0; }
+    saveDaily();
+    setBusy(false);
+    setStatus(player.mode === 'element' ? '' : '');
+    renderAll();
+    if (round.done) showResult();
+    else if (!matchMedia('(pointer:coarse)').matches) $('q').focus();
+  } catch (e) {
+    if (seq !== loadSeq) return;
+    setBusy(false, true);
+    setStatus(e.message || String(e), true);
+  }
+}
+
+function judge(c){
+  const t = round.track;
+  if (c.id === t.id) return 'correct';
+  const ansT = norm(t.title_short || t.title), guessT = norm(c.title);
+  const artists = [t.artist && t.artist.name, ...((t.contributors || []).map(x => x.name))].map(norm);
+  const guessA = norm(c.artist);
+  const artistOk = artists.includes(guessA);
+  if (ansT === guessT && artistOk) return 'correct';
+  return artistOk ? 'artist' : 'wrong';
+}
+
+function submitGuess(c){
+  if (!round || round.done) return;
+  const key = norm(c.title) + '|' + norm(c.artist);
+  if (round.guesses.some(g => g.id === c.id || g.key === key)){ toast('Already guessed that one'); return; }
+  const type = judge(c);
+  round.guesses.push({ type, id: c.id, key, text: c.title + ' — ' + c.artist });
+  $('q').value = ''; closeSugg();
+  if (type === 'artist') toast('Right artist, wrong song');
+  afterMove(type === 'correct');
+}
+function skip(){
+  if (!round || round.done) return;
+  round.guesses.push({ type: 'skip', text: round.guesses.length === STEPS.length - 1 ? 'Gave up' : 'Skipped' });
+  afterMove(false);
+}
+function afterMove(won){
+  player.stop();
+  if (won){ round.done = true; round.won = true; }
+  else if (round.guesses.length >= STEPS.length) round.done = true;
+  if (round.done) recordStats();
+  saveDaily();
+  renderAll();
+  if (round.done) showResult();
+}
+function recordStats(){
+  if (round.practice) return;
+  stats.played++;
+  if (round.won){ stats.won++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); stats.dist[round.guesses.length - 1]++; }
+  else { stats.lost++; stats.streak = 0; }
+  LS.set('stats', stats);
+}
+
+// ---------- rendering ----------
+const ICON = { skip: '–', wrong: '✕', artist: '~', correct: '✓' };
+function renderRows(){
+  const rows = $('rows'); rows.innerHTML = '';
+  for (let i = 0; i < STEPS.length; i++){
+    const g = round && round.guesses[i];
+    const d = document.createElement('div');
+    d.className = 'row' + (g ? ' ' + g.type : (round && !round.done && i === round.guesses.length ? ' cur' : ''));
+    const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = g ? ICON[g.type] : '';
+    const tx = document.createElement('span'); tx.className = 'txt'; tx.textContent = g ? g.text : '';
+    d.append(ic, tx); rows.append(d);
+  }
+}
+function curLimit(){ return !round ? STEPS[0] : round.done ? MAXT : STEPS[Math.min(round.guesses.length, STEPS.length - 1)]; }
+function renderBar(){
+  const bar = $('bar');
+  bar.querySelectorAll('.tick').forEach(t => t.remove());
+  STEPS.slice(0, -1).forEach(s => { const t = document.createElement('div'); t.className = 'tick'; t.style.left = scale(s) + '%'; bar.append(t); });
+  $('unlocked').style.width = scale(curLimit()) + '%';
+  $('progress').style.width = '0';
+  const lim = curLimit();
+  $('stepLabel').innerHTML = round && !round.done ? `<b>${fmt(lim)} ${lim === 1 ? 'second' : 'seconds'}</b> unlocked` : '&nbsp;';
+}
+function renderButtons(){
+  const active = !!round && !round.done;
+  const n = round ? round.guesses.length : 0;
+  $('skipBtn').textContent = n >= STEPS.length - 1 ? 'Give up' : `Skip (+${fmt(+(STEPS[n+1] - STEPS[n]).toFixed(1))}s)`;
+  $('skipBtn').disabled = !active;
+  $('q').disabled = !active;
+  setPlayIcon(player.playing && playingWhat === 'snippet');
+}
+function renderModes(){ document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === settings.mode)); }
+function renderAll(){ renderRows(); renderBar(); renderButtons(); renderModes(); $('playBtn').closest('.playrow').classList.toggle('hidden', !!(round && round.done)); }
+
+function setBusy(busy, keepDisabled){
+  $('playBtn').disabled = busy || !!keepDisabled;
+  $('skipBtn').disabled = busy || !!keepDisabled;
+  $('q').disabled = busy || !!keepDisabled;
+}
+const PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
+const STOP_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+function setPlayIcon(on){ $('playBtn').innerHTML = on ? STOP_SVG : PLAY_SVG; $('playBtn').setAttribute('aria-label', on ? 'Stop' : 'Play snippet'); }
+
+// ---------- playback wiring ----------
+let playingWhat = null;
+async function togglePlay(){
+  if (!round) return;
+  if (player.playing && playingWhat === 'snippet'){ player.stop(); return; }
+  playingWhat = 'snippet';
+  setPlayIcon(true);
+  setRPlay(false);
+  try {
+    await player.play(round.offset, curLimit(),
+      el => { $('progress').style.width = scale(el) + '%'; },
+      () => { playingWhat = null; setPlayIcon(false); setTimeout(() => { if (!player.playing) $('progress').style.width = '0'; }, 500); });
+  } catch (e) { playingWhat = null; setPlayIcon(false); setStatus('Playback was blocked: ' + e.message, true); }
+}
+function setRPlay(on){ $('rPlay').textContent = on ? 'Stop' : 'Play preview'; }
+async function toggleFull(){
+  if (!round) return;
+  if (player.playing && playingWhat === 'full'){ player.stop(); return; }
+  playingWhat = 'full';
+  setRPlay(true); setPlayIcon(false);
+  try {
+    await player.play(0, player.duration,
+      el => { $('rProg').style.width = (el / player.duration * 100) + '%'; },
+      () => { playingWhat = null; setRPlay(false); });
+  } catch (e) { playingWhat = null; setRPlay(false); }
+}
+
+function showResult(){
+  const t = round.track, n = round.guesses.length;
+  $('guessArea').classList.add('hidden');
+  $('result').classList.remove('hidden');
+  $('verdict').innerHTML = round.won
+    ? `Got it! <small>with ${fmt(STEPS[n-1])} ${STEPS[n-1] === 1 ? 'second' : 'seconds'} of audio · try ${n} of ${STEPS.length}</small>`
+    : `Not this time <small>the song was…</small>`;
+  $('cover').src = (t.album && (t.album.cover_medium || t.album.cover)) || '';
+  $('rTitle').textContent = t.title;
+  $('rArtist').textContent = (t.contributors && t.contributors.length ? t.contributors.map(c => c.name).join(', ') : t.artist.name);
+  $('rAlbum').textContent = t.album ? t.album.title + (t.release_date ? ' · ' + t.release_date.slice(0, 4) : '') : '';
+  $('rLink').href = t.link || ('https://www.deezer.com/track/' + t.id);
+  $('rProg').style.width = '0';
+  setRPlay(false);
+  const daily = round.mode === 'daily';
+  $('nextBtn').textContent = daily ? 'Keep playing (Endless)' : 'Next song';
+  $('retryBtn').classList.toggle('hidden', daily);
+  setStatus(daily ? 'New daily song tomorrow.' : '');
+}
+
+function shareText(){
+  const sq = { skip: '⬛', wrong: '🟥', artist: '🟨', correct: '🟩' };
+  let row = round.guesses.map(g => sq[g.type]).join('');
+  row += '⬜'.repeat(STEPS.length - round.guesses.length);
+  const head = 'Earworm · ' + sourceName(round.key) + (round.mode === 'daily' ? ' · ' + round.date : '');
+  return head + '\n🔊' + row + '\n' + (round.won ? 'Got it with ' + fmt(STEPS[round.guesses.length - 1]) + 's' : 'Missed it');
+}
+async function copy(text){
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch {} ta.remove(); return ok;
+  }
+}
+
+// ---------- search / autocomplete ----------
+let searchSeq = 0, searchT = 0, suggItems = [], suggIdx = -1;
+function closeSugg(){ $('sugg').innerHTML = ''; suggItems = []; suggIdx = -1; }
+function renderSugg(){
+  const ul = $('sugg'); ul.innerHTML = '';
+  if (!suggItems.length){ const li = document.createElement('li'); li.className = 'note'; li.textContent = 'No matches'; ul.append(li); return; }
+  suggItems.forEach((c, i) => {
+    const li = document.createElement('li');
+    if (i === suggIdx) li.className = 'on';
+    const img = document.createElement('img'); img.alt = ''; img.loading = 'lazy'; if (c.cover) img.src = c.cover;
+    const m = document.createElement('div'); m.className = 'm';
+    const t = document.createElement('div'); t.className = 't'; t.textContent = c.title;
+    const a = document.createElement('div'); a.className = 'a'; a.textContent = c.artist + (c.album ? ' · ' + c.album : '');
+    m.append(t, a); li.append(img, m);
+    li.addEventListener('mousedown', e => { e.preventDefault(); submitGuess(c); });
+    ul.append(li);
+  });
+  const on = ul.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest' });
+}
+async function runSearch(q){
+  const my = ++searchSeq;
+  try {
+    const d = await dz('/search', { q, limit: 15 });
+    if (my !== searchSeq || $('q').value.trim() !== q) return;
+    const seen = new Set(); suggItems = [];
+    for (const t of d.data || []){
+      if (!t || t.type !== 'track') continue;
+      const c = { id: t.id, title: t.title_short || t.title, artist: t.artist ? t.artist.name : '', album: t.album ? t.album.title : '', cover: t.album ? t.album.cover_small : '' };
+      const k = norm(c.title) + '|' + norm(c.artist);
+      if (seen.has(k)) continue; seen.add(k); suggItems.push(c);
+      if (suggItems.length >= 8) break;
+    }
+    suggIdx = suggItems.length ? 0 : -1;
+    renderSugg();
+  } catch { if (my === searchSeq) closeSugg(); }
+}
+$('q').addEventListener('input', () => {
+  const q = $('q').value.trim();
+  clearTimeout(searchT);
+  if (q.length < 2){ searchSeq++; closeSugg(); return; }
+  searchT = setTimeout(() => runSearch(q), 220);
+});
+$('q').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    if (!suggItems.length) return;
+    e.preventDefault();
+    suggIdx = (suggIdx + (e.key === 'ArrowDown' ? 1 : -1) + suggItems.length) % suggItems.length;
+    renderSugg();
+  } else if (e.key === 'Enter'){
+    e.preventDefault();
+    if (suggIdx >= 0 && suggItems[suggIdx]) submitGuess(suggItems[suggIdx]);
+  } else if (e.key === 'Escape'){ closeSugg(); }
+});
+$('q').addEventListener('blur', () => setTimeout(closeSugg, 120));
+
+// ---------- sources & settings ----------
+function buildSources(){
+  const sel = $('source'); sel.innerHTML = '';
+  const g1 = document.createElement('optgroup'); g1.label = 'Deezer charts';
+  GENRES.forEach(([id, n]) => g1.append(new Option(n, 'chart:' + id)));
+  sel.append(g1);
+  if (playlists.length){
+    const g2 = document.createElement('optgroup'); g2.label = 'My playlists';
+    playlists.forEach(p => g2.append(new Option(p.name, 'pl:' + p.id)));
+    sel.append(g2);
+  }
+  sel.append(new Option('+ Add a Deezer playlist…', '__add'));
+  sel.value = settings.source;
+  if (sel.value !== settings.source){ settings.source = 'chart:0'; sel.value = 'chart:0'; saveSettings(); }
+  const ul = $('plList'); ul.innerHTML = '';
+  playlists.forEach(p => {
+    const li = document.createElement('li');
+    const s = document.createElement('span'); s.textContent = p.name;
+    const b = document.createElement('button'); b.textContent = 'Remove';
+    b.onclick = () => {
+      playlists = playlists.filter(x => x.id !== p.id); LS.set('playlists', playlists);
+      if (settings.source === 'pl:' + p.id){ settings.source = 'chart:0'; saveSettings(); buildSources(); startRound(); }
+      else buildSources();
+    };
+    li.append(s, b); ul.append(li);
+  });
+}
+$('source').addEventListener('change', e => {
+  const v = e.target.value;
+  if (v === '__add'){ e.target.value = settings.source; openSettings(true); return; }
+  settings.source = v; saveSettings(); startRound();
+});
+document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => {
+  if (settings.mode === b.dataset.mode) return;
+  settings.mode = b.dataset.mode; saveSettings(); renderModes(); startRound();
+}));
+
+async function addPlaylist(){
+  const v = $('plInput').value.trim(), msg = $('plMsg');
+  msg.classList.remove('err');
+  const m = v.match(/playlist\/(\d+)/) || v.match(/^(\d+)$/);
+  if (!m){
+    msg.classList.add('err');
+    msg.textContent = /link\.deezer\.com|page\.link/.test(v)
+      ? 'Short share links can’t be read here. Open it in your browser, then paste the full deezer.com/…/playlist/… address.'
+      : 'Paste a Deezer playlist link or its number.';
+    return;
+  }
+  const id = m[1];
+  msg.textContent = 'Loading playlist…';
+  try {
+    const d = await dz('/playlist/' + id);
+    playlists = playlists.filter(p => p.id !== id);
+    playlists.push({ id, name: d.title || 'Playlist ' + id });
+    LS.set('playlists', playlists);
+    delete poolCache['pl:' + id];
+    settings.source = 'pl:' + id; saveSettings();
+    buildSources();
+    $('plInput').value = '';
+    msg.textContent = `Added “${d.title}” (${d.nb_tracks} songs).`;
+    $('settingsDlg').close();
+    startRound();
+  } catch (e) {
+    msg.classList.add('err');
+    msg.textContent = 'Couldn’t load that playlist (it may be private): ' + e.message;
+  }
+}
+$('plAdd').addEventListener('click', addPlaylist);
+$('plInput').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addPlaylist(); } });
+
+function openSettings(focusPl){
+  $('randStart').checked = settings.randomStart;
+  $('settingsDlg').showModal();
+  if (focusPl) $('plInput').focus();
+}
+$('settingsBtn').addEventListener('click', () => openSettings(false));
+const VOL_ICONS = {
+  mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="m22 9-6 6M16 9l6 6"/></svg>',
+  low: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>',
+  high: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>'
+};
+let lastVol = settings.volume > 0 ? settings.volume : 0.8;
+function applyVolume(v, save = true){
+  settings.volume = Math.max(0, Math.min(1, v));
+  if (settings.volume > 0) lastVol = settings.volume;
+  player.setVolume(settings.volume);
+  $('vol').value = settings.volume;
+  $('muteBtn').innerHTML = settings.volume === 0 ? VOL_ICONS.mute : settings.volume < 0.5 ? VOL_ICONS.low : VOL_ICONS.high;
+  $('muteBtn').setAttribute('aria-label', settings.volume === 0 ? 'Unmute' : 'Mute');
+  if (save) saveSettings();
+}
+$('vol').addEventListener('input', e => applyVolume(+e.target.value));
+$('muteBtn').addEventListener('click', () => applyVolume(settings.volume > 0 ? 0 : lastVol));
+applyVolume(settings.volume, false);
+$('randStart').addEventListener('change', e => { settings.randomStart = e.target.checked; saveSettings(); toast('Applies from the next song'); });
+$('resetHist').addEventListener('click', () => { LS.del('hist:' + settings.source); toast('Played-song history cleared for this source'); });
+$('resetStats').addEventListener('click', () => {
+  if (!confirm('Reset all your stats?')) return;
+  stats = { played: 0, won: 0, streak: 0, best: 0, dist: [0,0,0,0,0,0], lost: 0 }; LS.set('stats', stats); toast('Stats reset');
+});
+
+function openStats(){
+  const pct = stats.played ? Math.round(stats.won / stats.played * 100) : 0;
+  $('statsTop').innerHTML = '';
+  [[stats.played, 'Played'], [pct + '%', 'Won'], [stats.streak, 'Streak'], [stats.best, 'Best streak']].forEach(([v, l]) => {
+    const d = document.createElement('div'); d.innerHTML = `<b>${v}</b><span>${l}</span>`; $('statsTop').append(d);
+  });
+  const all = [...stats.dist, stats.lost], max = Math.max(1, ...all);
+  const hl = round && round.done ? (round.won ? round.guesses.length - 1 : STEPS.length) : -1;
+  $('dist').innerHTML = '';
+  all.forEach((v, i) => {
+    const row = document.createElement('div');
+    const lab = document.createElement('label'); lab.textContent = i < STEPS.length ? fmt(STEPS[i]) + 's' : '✕';
+    const bar = document.createElement('i'); bar.textContent = v; bar.style.width = (v / max * 100) + '%'; if (i === hl) bar.className = 'hl';
+    row.append(lab, bar); $('dist').append(row);
+  });
+  $('statsDlg').showModal();
+}
+$('statsBtn').addEventListener('click', openStats);
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
+
+// ---------- buttons & keys ----------
+$('playBtn').addEventListener('click', togglePlay);
+$('skipBtn').addEventListener('click', skip);
+$('rPlay').addEventListener('click', toggleFull);
+$('shareBtn').addEventListener('click', async () => toast(await copy(shareText()) ? 'Copied to clipboard' : 'Couldn’t copy'));
+$('nextBtn').addEventListener('click', () => {
+  if (round && round.mode === 'daily' && settings.mode === 'daily'){ settings.mode = 'endless'; saveSettings(); }
+  startRound();
+});
+$('retryBtn').addEventListener('click', () => { if (round){ const t = round.track; startRound(t).then(() => { if (round) round.practice = true; }); } });
+document.addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.repeat) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'button' || document.querySelector('dialog[open]')) return;
+  e.preventDefault();
+  if (round && round.done) toggleFull(); else togglePlay();
+});
+
+// ---------- go ----------
+buildSources();
+renderAll();
+setPlayIcon(false);
+startRound();
+})();
+</script>
+</body>
+</html>
